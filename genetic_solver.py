@@ -1,4 +1,5 @@
 import numpy as np
+import time
 
 
 class Genetic:
@@ -13,7 +14,7 @@ class Genetic:
 
     member_matrix=np.ndarray((0,0)) #atomic intervals -> intervals. 1 if the interval contains the atomic interval
 
-    population=np.array([[]])
+    population=np.ndarray((0,0))
 
     def __init__(self, num_points, intervals, counts, population_size):
         self.num_points=num_points
@@ -34,9 +35,11 @@ class Genetic:
         return
 
 
+
     def init_population(self):
         pvals = [abs((tuple[1]-tuple[0])/(self.atomic_intervals[-1][-1]-self.atomic_intervals[0][0])) for tuple in self.atomic_intervals]
         self.population=np.random.multinomial(self.num_points,pvals, self.population_size)
+        self.update_population(self.population)
         return
 
     def getbest(self):
@@ -45,32 +48,33 @@ class Genetic:
         individual = self.population[-1]
         return individual @ self.member_matrix.T
 
+    def update_population(self, children):
+        fitness = np.ndarray((self.population_size))
+        curcounts_m = children @ self.member_matrix.T
+        fitness = -np.sum((curcounts_m - self.counts)**2, axis=1)
+        pi = np.argsort(fitness)
+        self.population = children[pi]
+
+        return
+
     def step(self):
         #NOTE: Population must be sorted by fitness before calling this function
-        
-        NUM_SELECT = self.population_size//2
-
-        selected = self.population[self.population_size-NUM_SELECT:]
-        
-
-        #have children
-
 
         children = np.ndarray(self.population.shape)
 
-
-
-        pvals = [i/sum(range(1,NUM_SELECT+1)) for i in range(1,NUM_SELECT+1)]
-
         # 2 parents, can try more
-        parentdist = np.random.multinomial(2,pvals, self.population_size)
-        
         for i in range(children.shape[0]):
+            parentinds = [0]*2
+            for pind in range(len(parentinds)):
+                while True:
+                    cand = np.random.randint(0,self.population_size)
+                    if np.random.rand() < (cand+1)/(self.population_size):
+                        break
+                parentinds[pind] = cand
 
-            #mask is slow
-            parentinds = np.nonzero(parentdist[i])[0]
             mask = np.random.randint(0,2,children.shape[1]) == 0
-            children[i] = np.where(mask,selected[parentinds[0]],selected[parentinds[-1]])
+            children[i] = np.where(mask,self.population[parentinds[0]],self.population[parentinds[1]])
+
 
             # pivot = np.random.randint(0,children.shape[1])
             # children[i, :pivot] = selected[parentinds[0], :pivot]
@@ -78,6 +82,7 @@ class Genetic:
 
 
             #mutation
+            #TODO: definitely need some kind of swap or permutation.
             if(np.random.randint(0,3)==0):
                 for idx in range(children.shape[1]):
                     if(np.random.randint(0,5) == 0):
@@ -88,38 +93,34 @@ class Genetic:
 
 
             #fix number of points
+            #the choice to add uniformly is completely arbitrary, so this can be improved
 
+            pi = np.argsort(children[i])
             toadd = self.num_points-sum(children[i])
-            pi = np.random.permutation(children.shape[1])
-            for j in pi:
-                children[i,j] += toadd//children.shape[1]
-                if children[i,j] < 0:
-                    children[i,(j+1)%children.shape[1]] += children[i,j]
-                    children[i,j]=0
 
-            children[i,np.random.randint(0,children.shape[1])] += toadd%children.shape[1]
+            num_skipped = 0
+            for idx in pi:
+                curval = children[i, idx]
 
+                if curval + toadd//(children.shape[1] - num_skipped) > 0:
+                    break
 
-        #sort children based on fitness
+                children[i, idx] = 0
+                toadd += curval
+                num_skipped += 1
 
-        population_counts = []
-        fitness = []
+            for j in range(num_skipped,children.shape[1]):
+                children[i, pi[j]] += toadd//(children.shape[1]-num_skipped)
 
-        #compute counts and fitness
+            children[i,np.random.randint(0,children.shape[1])] += toadd%(children.shape[1]-num_skipped)
 
-        for individual in children:
-            population_counts.append(individual @ self.member_matrix.T ) 
-
-        
-        for curcounts in population_counts:
-            fitness.append(-sum([(a-b)*(a-b) for (a,b) in zip(curcounts,self.counts)]))
-
-
-        #select
-        idx = np.argsort(fitness)
-        self.population = children[idx]
+        self.update_population(children)
 
         return
+    
+
+
+
 
 
 NUM_POINTS = 10000
@@ -134,12 +135,12 @@ print(data)
 print(intervals)
 print(counts)
 
-genetic = Genetic(NUM_POINTS,intervals, counts, 20)
+genetic = Genetic(NUM_POINTS,intervals, counts, 100)
 genetic.init_population()
 
 
 for i in range(50000):
-
+    
     input()
     genetic.step()
     expected = genetic.counts
