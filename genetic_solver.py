@@ -66,30 +66,30 @@ class Genetic:
         for i in range(children.shape[0]):
             parentinds = [0]*2
             for pind in range(len(parentinds)):
+                #Using the roulette method
                 while True:
                     cand = np.random.randint(0,self.population_size)
                     if np.random.rand() < (cand+1)/(self.population_size):
                         break
                 parentinds[pind] = cand
 
-            mask = np.random.randint(0,2,children.shape[1]) == 0
-            children[i] = np.where(mask,self.population[parentinds[0]],self.population[parentinds[1]])
+            alpha = np.random.rand()
+            children[i] = np.round(self.population[parentinds[0]]*alpha + self.population[parentinds[1]]*(1-alpha))
+            #delta = self.num_points - sum(children[i])
 
-
-            # pivot = np.random.randint(0,children.shape[1])
-            # children[i, :pivot] = selected[parentinds[0], :pivot]
-            # children[i, pivot:] = selected[parentinds[-1], pivot:]
-
+            #TODO: TOMORROW: FIX MUTATION, AND COMPLETE CROSSOVER
 
             #mutation
             #TODO: definitely need some kind of swap or permutation.
+
             if(np.random.randint(0,3)==0):
                 for idx in range(children.shape[1]):
-                    if(np.random.randint(0,5) == 0):
-                        offs = round(np.random.normal(0, self.num_points/100))
-                        children[i,idx] += offs
-                        if children[i,idx] <0:
-                            children[i,idx]=0
+                    if(np.random.randint(0,8) == 0):
+                        offs = abs(round(np.random.normal(0, self.num_points/100)))
+                        if children[i,idx] < offs:
+                            offs = children[i,idx]
+                        children[i,idx] -= offs
+                        children[i, np.random.randint(0,children.shape[1])] += offs
 
 
             #fix number of points
@@ -141,18 +141,19 @@ genetic.init_population()
 
 for i in range(50000):
     
-    input()
     genetic.step()
     expected = genetic.counts
     actual = genetic.getcounts()
 
-    print("OG:", data)
-    print(genetic.getbest())
-    print(expected)
-    print(actual)
-    mse= sum([(a-b)*(a-b) for (a,b) in zip(expected,actual)])
-    print("MSE: ", mse)
-    if mse == 0:
+    # print("OG:", data)
+    # print(genetic.getbest())
+    # print(expected)
+    # print(actual)
+    #mse= sum([(a-b)*(a-b) for (a,b) in zip(expected,actual)])
+    #print("MSE: ", mse)
+    taxidist= sum(abs(expected-actual))
+    print("taxidsit: ", taxidist)
+    if taxidist == 0:
         break
 
 
